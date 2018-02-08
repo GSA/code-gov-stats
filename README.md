@@ -5,7 +5,9 @@ A simple app to extract stats about repositories using the Github API and [Cloc]
 ## Dependencies
 
 1. Github: The repo information is completly gathered from Github. There are a number of libraries you can use to accomplish this. We are using [@octokit/rest](https://www.npmjs.com/package/@octokit/rest).
+  - To use the Github API more efficiently you should use a [Personal Github Token](https://help.github.com/articles/creating-a-personal-access-token-for-the-command-line/). You can then place this token in a `.env` file at the root of the project. For convinience this repo includes a .env-example file that you can rename and use.
 2. Cloc: Part of the analysis we are conducting is the cost of software. We are using Cloc to get a project's lines of code. This total is then used with [COCOMO II](http://csse.usc.edu/tools/cocomoii.php) to calculate costs and savings. You can find information for [CLOC here](https://github.com/AlDanial/cloc).
+3. Releases.json: the [Code.gov front-end](https://github.com/GSA/code-gov-web) uses a file called [releases.json](https://raw.githubusercontent.com/GSA/code-gov-data/master/releases.json?token=AB1ES6AnWo1WleX9jiGx41Kkblnk11pXks5ahbU6wA%3D%3D) where all our code inventory is stored for use. This is going to change in the near future for the use of our API.
 
 
 ## Calculating Cost and Savings
