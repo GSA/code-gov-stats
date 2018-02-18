@@ -17,7 +17,9 @@
   "license": "ISC",
   "dependencies": {
     "@octokit/rest": "^14.0.8",
+    "commander": "^2.14.1",
     "dotenv": "^5.0.0",
+    "graphql-request": "^1.4.1",
     "jsonfile": "^4.0.0",
     "node-svn-ultimate": "^1.1.0",
     "winston": "^2.4.0"
