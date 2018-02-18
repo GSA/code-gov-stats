@@ -63,7 +63,10 @@ typings/
 .vscode
 
 github-data-all-inventory.json
+inventory-github-data.json
 github-data-top-repos.json
 stats.json
 cloc-results.json
 releases.json
+
+.DS_Store
