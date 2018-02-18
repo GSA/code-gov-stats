@@ -60,9 +60,9 @@ function addToGithubList ({usageType, repositoryUrl, githubRepos}) {
   }
 }
 
-function getTopRepoStats (topRepos, logger) {
+function getGithubStatsFromList (repos, logger) {
   Promise.all(
-    topRepos.map(repo => {
+    repos.map(repo => {
       if (isGithubUrl(repo.url)) {
         return getGithubData(repo.url)
       }
@@ -121,12 +121,19 @@ function getLogger () {
   })
 }
 
+function getAppVersion () {
+  const packageJson = JsonFile.readFileSync(path.join(path.dirname(__dirname), 'package.json'))
+
+  return packageJson.version
+}
+
 module.exports = {
   writeOutData,
   cloneRepo,
   setInventoryStats,
   getLogger,
-  getTopRepoStats,
+  getGithubStatsFromList,
   cloneTopRepos,
-  addToGithubList
+  addToGithubList,
+  getAppVersion
 }
