@@ -1,0 +1,46 @@
+[
+    {
+        "url": "https://github.com/USArmyResearchLab/Dshell",
+        "folderName": "Dshell"
+    },
+    {
+        "url": "https://github.com/NationalSecurityAgency/SIMP",
+        "folderName": "SIMP"
+    },
+    {
+        "url": "https://github.com/iadgov/WALKOFF-Apps",
+        "folderName": "WALKOFF-Apps"
+    },
+    {
+        "url": "https://github.com/iadgov/WALKOFF",
+        "folderName": "WALKOFF"
+    },
+    {
+        "url": "https://github.com/nasa/openmct",
+        "folderName": "openmct"
+    },
+    {
+        "url": "https://github.com/SSAgov/ANDI",
+        "folderName": "ANDI"
+    },
+    {
+        "url": "https://github.com/LLNL/zfp",
+        "folderName": "zfp"
+    },
+    {
+        "url": "https://github.com/LLNL/spack",
+        "folderName": "spack"
+    },
+    {
+        "url": "https://github.com/adlnet/xAPI-Spec",
+        "folderName": "xAPI-Spec"
+    },
+    {
+        "url": "https://svn.code.sf.net/p/brlcad/code/brlcad/trunk",
+        "folderName": "brlcad"
+    },
+    {
+        "url": "https://github.com/uswds/uswds",
+        "folderName": "uswds"
+    }
+  ]
