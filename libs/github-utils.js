@@ -22,7 +22,19 @@ async function getGithubData ({owner, logger}) {
     logger.error(error)
   }
 }
+async function getGithubData ({owner, repoName, logger}) {
+  logger.debug('Entering getGithubData for owner: ', owner)
 
+  try {
+    return queryGithub({
+      query: getQueryTemplate(),
+      owner,
+      client: getGithubClient(process.env.GITHUB_TOKEN)
+    })
+  } catch (error) {
+    logger.error(error)
+  }
+}
 async function queryGithub ({query, owner, client, cursor = null, githubData = []}) {
   const queryParams = {
     agency: owner,
@@ -153,7 +165,7 @@ function getGithubInformation (repoUrls, logger) {
   logger.info('Get Github data start.')
   Promise.all(
     repoUrls.map(repoUrl => {
-      return getGithubData(repoUrl, logger)
+      return getGithubData({repoUrl, logger})
         .then(githubData => {
           return githubData
         })

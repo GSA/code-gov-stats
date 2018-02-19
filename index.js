@@ -1,80 +1,92 @@
-const { getGithubClient, getGithubData, addToGithubList, writeOutData, setInventoryStats, isGithubUrl, cloneRepo, getLogger } = require('./libs/utils')
+const {
+  setInventoryStats,
+  addToGithubList,
+  getLogger,
+  getGithubStatsFromList,
+  cloneTopRepos,
+  writeOutData,
+  getAppVersion
+} = require('./libs/utils')
+const { getGithubReposDataByOwner, getUniqueGithubRepoOwners } = require('./libs/github-utils')
+
+const path = require('path')
 const dotenv = require('dotenv')
-const jsonfile = require('jsonfile')
+const JsonFile = require('jsonfile')
+const app = require('commander')
 
 dotenv.config()
 
-var logger = getLogger()
-const topRepos = [
-  {url: 'https://github.com/USArmyResearchLab/Dshell', folderName: 'Dshell'},
-  {url: 'https://github.com/NationalSecurityAgency/SIMP', folderName: 'SIMP'},
-  {url: 'https://github.com/iadgov/WALKOFF-Apps', folderName: 'WALKOFF-Apps'},
-  {url: 'https://github.com/iadgov/WALKOFF', folderName: 'WALKOFF'},
-  {url: 'https://github.com/nasa/openmct', folderName: 'openmct'},
-  {url: 'https://github.com/SSAgov/ANDI', folderName: 'ANDI'},
-  {url: 'https://github.com/LLNL/zfp', folderName: 'zfp'},
-  {url: 'https://github.com/LLNL/spack', folderName: 'spack'},
-  {url: 'https://github.com/adlnet/xAPI-Spec', folderName: 'xAPI-Spec'},
-  {url: 'https://svn.code.sf.net/p/brlcad/code/brlcad/trunk', folderName: 'brlcad'},
-  {url: 'https://github.com/uswds/uswds', folderName: 'uswds'}
-]
+let logger = getLogger()
 
-function getInventoryStats () {
-  logger.info('Starting Main.')
+const usageText = `code-gov-stats <cmd>
+  Commands:
+    
+    inventory-stats [releasesFile]   Calculate stats for all repositories in the Code.gov inventory.
+                                     Uses the passed releases file path.
+                                     Defaults to releases.json and tries to find it in the current directory
+    top-stats                        Calculate stats for our top repositories. Uses top-repos.json file found in the apps config folder.
+`
+function getInventoryStats (releasesFile) {
+  logger.info('Starting to calculate Inventory Stats')
+  const codeGovReleases = JsonFile.readFileSync(releasesFile)
+  const releasesKeys = Object.keys(codeGovReleases.releases)
 
-  const codeGovReleases = jsonfile.readFileSync('./releases.json')
-  const githubClient = getGithubClient(process.env.GITHUB_TOKEN)
-
-  let stats = { totalProjects: Object.keys(codeGovReleases.releases).length }
+  let stats = {
+    totalProjects: releasesKeys.length
+  }
   let repoUrls = []
-  let githubData = []
 
-  logger.info('Starting releases iterator')
-  Object.keys(codeGovReleases.releases).forEach(key => {
+  releasesKeys.forEach(key => {
     const repo = codeGovReleases.releases[key]
-
-    setInventoryStats(repo.permissions.usageType, repo.repositoryURL, stats)
-    addToGithubList(repo.permissions.usageType, repo.repositoryURL, repoUrls)
+    setInventoryStats({ usageType: repo.permissions.usageType, repositoryUrl: repo.repositoryURL, stats, logger })
+    addToGithubList({ usageType: repo.permissions.usageType, repositoryUrl: repo.repositoryURL, githubRepos: repoUrls })
   })
-  logger.info('Finished releases iterator')
 
   logger.info('Writing out stats file.')
   logger.debug(`Stats: ${stats}`)
   writeOutData(stats, 'stats.json')
-  stats = null
 
-  logger.info('Get Github data start.')
-  Promise.all(
-    repoUrls.map(repoUrl => {
-      return getGithubData(repoUrl, githubClient)
+  const uniqueRepoOwners = getUniqueGithubRepoOwners(repoUrls)
+
+  getGithubReposDataByOwner({ repoOwnerList: uniqueRepoOwners, logger })
+    .then(values => {
+      writeOutData(values, 'inventory-github-data.json')
+      logger.info('Finished calculating Inventory Stats')
     })
-  ).then(values => {
-    logger.info('Writing out Github data.')
-    writeOutData(values, 'github-data-all-inventory.json')
-  })
-  .catch(error => logger.error(error))
 }
 
-function getTopRepoStats (topRepos) {
-  const githubClient = getGithubClient(process.env.GITHUB_TOKEN)
-  Promise.all(
-    topRepos.map(repo => {
-      if (isGithubUrl(repo.url)) {
-        return getGithubData(repo.url, githubClient)
-      }
-    })
-  ).then(values => {
-    logger.info('Writing out Github data.')
-    writeOutData(values, 'github-data-top-repos.json')
-  })
-}
-
-function cloneTopRepos(topRepos) {
-  topRepos.forEach(repo => {
-    cloneRepo(repo.url)
+function getTopRepoStats () {
+  const filePath = path.join(__dirname, '/config/top-repos.json')
+  JsonFile.readFile(filePath, (error, topRepos) => {
+    logger.info('Starting to calculate Top Repos Stats')
+    if (error) {
+      logger.error(error)
+    }
+    const repoUrls = topRepos.map(repo => repo.url)
+    getGithubStatsFromList(repoUrls, logger)
+      .then(values => {
+        logger.info('Writing out Top Repo Github data.')
+        writeOutData(values, 'github-data-top-repos.json')
+        logger.info('Finished calculating Top Repos Stats')
+      })
+    logger.info('Cloning Top Repos')
+    cloneTopRepos(topRepos)
+    logger.info('Finished cloning Top Repos')
   })
 }
 
-getInventoryStats()
-getTopRepoStats(topRepos)
-cloneTopRepos(topRepos)
+app.version(getAppVersion())
+  .usage(usageText)
+
+app.command('inventory-stats [releasesFile]')
+  .action(releasesFile => {
+    releasesFile = releasesFile || path.join(__dirname, 'releases.json')
+    getInventoryStats(releasesFile)
+  })
+
+app.command('top-stats')
+  .action(() => {
+    getTopRepoStats()
+  })
+
+app.parse(process.argv)

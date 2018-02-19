@@ -3,7 +3,7 @@ const JsonFile = require('jsonfile')
 const path = require('path')
 const winston = require('winston')
 const { spawn } = require('child_process')
-const { isGithubUrl, getGithubData, parseGithubUrl } = require('./github-utils')
+const { isGithubUrl, getGithubInformation, parseGithubUrl } = require('./github-utils')
 
 function setInventoryStats ({usageType, repositoryUrl, stats, logger}) {
   logger.debug('getInventoryStats.')
@@ -61,16 +61,8 @@ function addToGithubList ({usageType, repositoryUrl, githubRepos}) {
 }
 
 function getGithubStatsFromList (repos, logger) {
-  Promise.all(
-    repos.map(repo => {
-      if (isGithubUrl(repo.url)) {
-        return getGithubData(repo.url)
-      }
-    })
-  ).then(values => {
-    logger.info('Writing out Github data.')
-    writeOutData(values, 'github-data-top-repos.json')
-  })
+  repos = repos.filter(repoUrl => isGithubUrl(repoUrl))
+  return getGithubInformation(repos, logger)
 }
 
 function cloneRepo (repoUrl) {
