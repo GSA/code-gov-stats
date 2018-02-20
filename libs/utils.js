@@ -5,6 +5,7 @@ const { createLogger, format, transports } = require('winston')
 const { combine, timestamp, prettyPrint } = format
 const { spawn } = require('child_process')
 const { isGithubUrl, getGithubInformation, parseGithubUrl } = require('./github-utils')
+const fetch = require('node-fetch')
 
 function setInventoryStats ({usageType, repositoryUrl, stats, logger}) {
   logger.debug('getInventoryStats.')
@@ -113,6 +114,16 @@ function getAppVersion () {
   return packageJson.version
 }
 
+function getCodeGovReleasesFile (fileUrl, filePath, logger) {
+  return fetch(fileUrl).then(codeGovReleases => {
+    JsonFile.writeFile(filePath, error => {
+      if (error) {
+        logger.error(error)
+      }
+    })
+  })
+}
+
 module.exports = {
   writeOutData,
   cloneRepo,
@@ -121,5 +132,6 @@ module.exports = {
   getGithubStatsFromList,
   cloneTopRepos,
   addToGithubList,
-  getAppVersion
+  getAppVersion,
+  getCodeGovReleasesFile
 }
