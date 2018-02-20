@@ -1,4 +1,5 @@
 const { GraphQLClient } = require('graphql-request')
+const { delay } = require('./utils')
 
 function getGithubClient (token) {
   return new GraphQLClient(
@@ -9,64 +10,116 @@ function getGithubClient (token) {
     })
 }
 
-async function getGithubData ({owner, logger}) {
-  logger.debug('Entering getGithubData for owner: ', owner)
+async function getGithubData ({repoUrl, owner, logger}) {
+  logger.debug(`Entering getGithubData for: ${owner || repoUrl}`)
+  let graphqlQuery = null
+  let repoName = null
+
+  if (repoUrl) {
+    ({ owner, repo: repoName } = parseGithubUrl(repoUrl))
+    graphqlQuery = getQueryTemplate({singleRepo: true})
+  } else {
+    graphqlQuery = getQueryTemplate()
+  }
 
   try {
     return queryGithub({
-      query: getQueryTemplate(),
+      query: graphqlQuery,
       owner,
-      client: getGithubClient(process.env.GITHUB_TOKEN)
+      repoName,
+      client: getGithubClient(process.env.GITHUB_TOKEN),
+      logger
     })
   } catch (error) {
     logger.error(error)
   }
 }
-async function getGithubData ({owner, repoName, logger}) {
-  logger.debug('Entering getGithubData for owner: ', owner)
-
-  try {
-    return queryGithub({
-      query: getQueryTemplate(),
-      owner,
-      client: getGithubClient(process.env.GITHUB_TOKEN)
-    })
-  } catch (error) {
-    logger.error(error)
-  }
-}
-async function queryGithub ({query, owner, client, cursor = null, githubData = []}) {
-  const queryParams = {
-    agency: owner,
-    queryBatch: parseInt(process.env.GITHUB_QUERY_BATCHES)
+async function queryGithub ({query, owner, client, repoName = null, logger, cursor = null, githubData = []}) {
+  logger.debug(`Entering queryGithub for owner: ${owner}`)
+  let queryParams = {}
+  if (repoName && owner) {
+    queryParams = { owner, repoName }
+  } else {
+    queryParams = {
+      agency: owner,
+      queryBatch: parseInt(process.env.GITHUB_QUERY_BATCHES)
+    }
   }
 
   if (cursor) {
     queryParams.repositoryCursor = cursor
   }
-  setTimeout(async () => {
-    try {
-      const data = await client.request(query, queryParams)
-      githubData.push.apply(githubData, _handleGraphqlResponse(data))
 
-      if (data && data.repositoryOwner && data.repositoryOwner.repositories.pageInfo.hasNextPage) {
-        return queryGithub({
-          query,
-          owner,
-          client,
-          cursor: data.repositoryOwner.repositories.pageInfo.endCursor,
-          githubData
-        })
-      } else {
-        return githubData
+  return client.request(query, queryParams)
+    .then(data => {
+      logger.debug('Entered delay promise for 2000ms')
+      return delay(2000, data)
+    })
+    .then(data => {
+      logger.debug('Entered client.request handler promise.')
+      if (data && data.repositoryOwner) {
+        githubData.push.apply(githubData, _handleGraphqlResponse(data))
+        if (data.repositoryOwner.repositories.pageInfo.hasNextPage) {
+          return queryGithub({
+            query,
+            owner,
+            client,
+            logger,
+            cursor: data.repositoryOwner.repositories.pageInfo.endCursor,
+            githubData
+          })
+        } else {
+          return githubData
+        }
       }
-    } catch (error) {
-      throw error
-    }
-  }, 1000)
+      if (data && data.repository) {
+        return _handleGraphqlResponse(data)
+      }
+    })
+    .catch(error => {
+      logger.error(error)
+    })
 }
 
-function getQueryTemplate (owner) {
+function getQueryTemplate ({ singleRepo = false }) {
+  if (singleRepo) {
+    return `query CodeGoveRepoStats($owner: String!, $repoName: String!){ 
+      repository(owner: $owner, name: $repoName) {
+        owner {
+          ... on User {
+            url
+            userEmail: email
+          }
+          ... on Organization {
+            url
+            organizationEmail: email
+          }
+        }
+        nameWithOwner
+        createdAt
+        forkCount
+        isFork
+        watchers {
+          totalCount
+        }
+        stargazers {
+          totalCount
+        }
+        pullRequests {
+          totalCount
+        }
+        issues {
+          totalCount
+        }
+        languages(first: 20) {
+          nodes {
+            name
+          }
+        }
+      }
+    }`
+  }
+
   return `query CodeGovRepoStats($agency: String!, $queryBatch: Int = 100, $repositoryCursor: String) {
     repositoryOwner(login: $agency) {
       repositories(first: $queryBatch, after: $repositoryCursor) {
@@ -122,10 +175,8 @@ function getQueryTemplate (owner) {
   }`
 }
 
-function _handleGraphqlResponse (responseObject) {
-  const repositories = responseObject.repositoryOwner.repositories.edges
-
-  return repositories.reduce((resultRepos, repo) => {
+function _handleMultipleResults (repositories) {
+  return repositories.edges.reduce((resultRepos, repo) => {
     resultRepos.push({
       name: repo.node.owner.name,
       email: repo.node.owner.email || '',
@@ -149,6 +200,36 @@ function _handleGraphqlResponse (responseObject) {
     return resultRepos
   }, [])
 }
+function _handleSingleResult (repository) {
+  return {
+    owner: {
+      name: repository.owner.name,
+      email: repository.owner.email || '',
+      url: repository.owner.url
+    },
+    name: repository.nameWithOwner,
+    isFork: repository.isFork,
+    createdAt: repository.createdAt,
+    forks: repository.forkCount,
+    issues: repository.issues.totalCount,
+    stargazers: repository.stargazers.totalCount,
+    watchers: repository.watchers.totalCount,
+    pullRequests: repository.pullRequests.totalCount,
+    languages: repository.languages.nodes.reduce((languages, node) => {
+      languages.push(node.name)
+      return languages
+    }, [])
+  }
+}
+
+function _handleGraphqlResponse (responseObject) {
+  if (responseObject.repositoryOwner && responseObject.repositoryOwner.repositories) {
+    return _handleMultipleResults(responseObject.repositoryOwner.repositories)
+  }
+  if (responseObject.repository) {
+    return _handleSingleResult(responseObject.repository)
+  }
+}
 
 function getGithubReposDataByOwner ({repoOwnerList, logger}) {
   return Promise.all(
@@ -161,9 +242,9 @@ function getGithubReposDataByOwner ({repoOwnerList, logger}) {
   )
 }
 
-function getGithubInformation (repoUrls, logger) {
+function getGithubInformation ({repoUrls, logger}) {
   logger.info('Get Github data start.')
-  Promise.all(
+  return Promise.all(
     repoUrls.map(repoUrl => {
       return getGithubData({repoUrl, logger})
         .then(githubData => {
@@ -187,8 +268,11 @@ function parseGithubUrl (githubUrl) {
   if (githubUrl.match(/\.git$/)) {
     githubUrl = githubUrl.replace(/\.git$/, '')
   }
-  if (githubUrl.match(/^https:\/\/github.com\//)) {
-    githubUrl = githubUrl.replace(/^https:\/\/github.com\//, '')
+  if (githubUrl.match(/^(https: || http:)\/\/github.com\//)) {
+    githubUrl = githubUrl.replace(/^(https: || http:)\/\/github.com\//, '')
+  }
+  if (githubUrl.match(/^git:\/\/github.com\//)) {
+    githubUrl = githubUrl.replace(/^git:\/\/github.com\//, '')
   }
   if (githubUrl.match(/^git@github.com:\//)) {
     githubUrl = githubUrl.replace(/^git@github.com:\//, '')
