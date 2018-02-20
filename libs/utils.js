@@ -1,7 +1,8 @@
 // const Octokit = require('@octokit/rest')
 const JsonFile = require('jsonfile')
 const path = require('path')
-const winston = require('winston')
+const { createLogger, format, transports } = require('winston')
+const { combine, timestamp, prettyPrint } = format
 const { spawn } = require('child_process')
 const { isGithubUrl, getGithubInformation, parseGithubUrl } = require('./github-utils')
 
@@ -60,9 +61,9 @@ function addToGithubList ({usageType, repositoryUrl, githubRepos}) {
   }
 }
 
-function getGithubStatsFromList (repos, logger) {
-  repos = repos.filter(repoUrl => isGithubUrl(repoUrl))
-  return getGithubInformation(repos, logger)
+function getGithubStatsFromList (repoUrls, logger) {
+  repoUrls = repoUrls.filter(repoUrl => isGithubUrl(repoUrl))
+  return getGithubInformation({repoUrls, logger})
 }
 
 function cloneRepo (repoUrl) {
@@ -90,24 +91,17 @@ function writeOutData (data, filename) {
 }
 
 function getLogger () {
-  const customFormatter = (options) => {
-    return options.timestamp() + ' ' +
-      winston.config.colorize(options.level, options.level.toUpperCase()) + ' ' +
-      (options.message ? options.message : '') +
-      (options.meta && Object.keys(options.meta).length ? '\n\t' + JSON.stringify(options.meta) : '')
-  }
-  return new (winston.Logger)({
+  return createLogger({
+    format: combine(
+      // label({ label: 'right meow!' }),
+      timestamp(),
+      prettyPrint()
+    ),
     transports: [
-      new (winston.transports.Console)({
-        timestamp: () => Date.now(),
-        formatter: customFormatter,
-        level: 'info'
-      }),
-      new (winston.transports.File)({
-        timestamp: () => Date.now(),
-        formatter: customFormatter,
-        filename: path.join(path.dirname(__dirname), 'code-gov-stats.log'),
-        level: 'debug'
+      new transports.Console({level: 'debug'}),
+      new transports.File({
+        level: 'info',
+        filename: path.join(path.dirname(__dirname), 'code-gov-stats.log')
       })
     ]
   })
