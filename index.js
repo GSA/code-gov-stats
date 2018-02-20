@@ -5,7 +5,8 @@ const {
   getGithubStatsFromList,
   cloneTopRepos,
   writeOutData,
-  getAppVersion
+  getAppVersion,
+  getCodeGovReleasesFile
 } = require('./libs/utils')
 const { getGithubReposDataByOwner, getUniqueGithubRepoOwners } = require('./libs/github-utils')
 
@@ -84,8 +85,17 @@ app.version(getAppVersion())
 
 app.command('inventory-stats [releasesFile]')
   .action(releasesFile => {
-    releasesFile = releasesFile || path.join(__dirname, 'releases.json')
-    getInventoryStats(releasesFile, getLogger())
+    const logger = getLogger()
+
+    if (!releasesFile) {
+      getCodeGovReleasesFile('https://raw.githubusercontent.com/GSA/code-gov-data/master/releases.json', logger)
+        .then(() => {
+          releasesFile = path.join(__dirname, 'data/releases.json')
+          getInventoryStats(releasesFile, logger)
+        })
+    } else {
+      getInventoryStats(releasesFile, logger)
+    }
   })
 
 app.command('top-stats')
