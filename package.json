@@ -20,6 +20,7 @@
     "dotenv": "^5.0.0",
     "graphql-request": "^1.4.1",
     "jsonfile": "^4.0.0",
+    "node-fetch": "^2.0.0",
     "node-svn-ultimate": "^1.1.0",
     "winston": "^3.0.0-rc1"
   },
