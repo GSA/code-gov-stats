@@ -27,31 +27,35 @@ const usageText = `code-gov-stats <cmd>
 `
 function getInventoryStats (releasesFile, logger) {
   logger.info('Starting to calculate Inventory Stats')
-  const codeGovReleases = JsonFile.readFileSync(releasesFile)
-  const releasesKeys = Object.keys(codeGovReleases.releases)
+  JsonFile.readFile(releasesFile, (error, codeGovReleases) => {
+    if (error) {
+      throw error
+    }
+    const releasesKeys = Object.keys(codeGovReleases.releases)
+    let stats = {
+      totalProjects: releasesKeys.length
+    }
 
-  let stats = {
-    totalProjects: releasesKeys.length
-  }
-  let repoUrls = []
+    let repoUrls = []
 
-  releasesKeys.forEach(key => {
-    const repo = codeGovReleases.releases[key]
-    setInventoryStats({ usageType: repo.permissions.usageType, repositoryUrl: repo.repositoryURL, stats, logger })
-    addToGithubList({ usageType: repo.permissions.usageType, repositoryUrl: repo.repositoryURL, githubRepos: repoUrls })
-  })
-
-  logger.info('Writing out stats file.')
-  logger.debug(`Stats: ${stats}`)
-  writeOutData(stats, 'stats.json')
-
-  const uniqueRepoOwners = getUniqueGithubRepoOwners(repoUrls)
-
-  getGithubReposDataByOwner({ repoOwnerList: uniqueRepoOwners, logger })
-    .then(values => {
-      writeOutData(values, 'inventory-github-data.json')
-      logger.info('Finished calculating Inventory Stats')
+    releasesKeys.forEach(key => {
+      const repo = codeGovReleases.releases[key]
+      setInventoryStats({ usageType: repo.permissions.usageType, repositoryUrl: repo.repositoryURL, stats, logger })
+      addToGithubList({ usageType: repo.permissions.usageType, repositoryUrl: repo.repositoryURL, githubRepos: repoUrls })
     })
+
+    logger.info('Writing out stats file.')
+    logger.debug(`Stats: ${stats}`)
+    writeOutData(stats, 'stats.json')
+
+    const uniqueRepoOwners = getUniqueGithubRepoOwners(repoUrls)
+
+    getGithubReposDataByOwner({ repoOwnerList: uniqueRepoOwners, logger })
+      .then(values => {
+        writeOutData(values, 'inventory-github-data.json')
+        logger.info('Finished calculating Inventory Stats')
+      })
+  })
 }
 
 function getTopRepoStats (clone, logger) {
@@ -88,11 +92,11 @@ app.command('inventory-stats [releasesFile]')
     const logger = getLogger()
 
     if (!releasesFile) {
-      getCodeGovReleasesFile('https://raw.githubusercontent.com/GSA/code-gov-data/master/releases.json', logger)
-        .then(() => {
-          releasesFile = path.join(__dirname, 'data/releases.json')
-          getInventoryStats(releasesFile, logger)
-        })
+      const releasesFile = path.join(__dirname, 'data/releases.json')
+      const releasesUrl = 'https://raw.githubusercontent.com/GSA/code-gov-data/master/releases.json'
+      getCodeGovReleasesFile(releasesUrl, releasesFile, logger).then(() => {
+        getInventoryStats(releasesFile, logger)
+      })
     } else {
       getInventoryStats(releasesFile, logger)
     }
