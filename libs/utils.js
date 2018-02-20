@@ -115,12 +115,24 @@ function getAppVersion () {
 }
 
 function getCodeGovReleasesFile (fileUrl, filePath, logger) {
-  return fetch(fileUrl).then(codeGovReleases => {
-    JsonFile.writeFile(filePath, error => {
-      if (error) {
-        logger.error(error)
-      }
+  return fetch(fileUrl)
+    .then(response => response.json())
+    .then(codeGovReleases => {
+      JsonFile.writeFile(filePath, codeGovReleases, error => {
+        if (error) {
+          logger.error(error)
+        }
+      })
     })
+    .catch(error => {
+      logger.error(`Error fetching releases.json from: ${fileUrl}`)
+      throw error
+    })
+}
+
+function delay (delayTime, passThroughValue) {
+  return new Promise(resolve => {
+    setTimeout(resolve.bind(null, passThroughValue), delayTime)
   })
 }
 
@@ -133,5 +145,6 @@ module.exports = {
   cloneTopRepos,
   addToGithubList,
   getAppVersion,
-  getCodeGovReleasesFile
+  getCodeGovReleasesFile,
+  delay
 }
