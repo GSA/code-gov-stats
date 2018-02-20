@@ -16,8 +16,6 @@ const app = require('commander')
 
 dotenv.config()
 
-let logger = getLogger()
-
 const usageText = `code-gov-stats <cmd>
   Commands:
     
@@ -26,7 +24,7 @@ const usageText = `code-gov-stats <cmd>
                                      Defaults to releases.json and tries to find it in the current directory
     top-stats                        Calculate stats for our top repositories. Uses top-repos.json file found in the apps config folder.
 `
-function getInventoryStats (releasesFile) {
+function getInventoryStats (releasesFile, logger) {
   logger.info('Starting to calculate Inventory Stats')
   const codeGovReleases = JsonFile.readFileSync(releasesFile)
   const releasesKeys = Object.keys(codeGovReleases.releases)
@@ -55,23 +53,29 @@ function getInventoryStats (releasesFile) {
     })
 }
 
-function getTopRepoStats () {
+function getTopRepoStats (clone, logger) {
   const filePath = path.join(__dirname, '/config/top-repos.json')
   JsonFile.readFile(filePath, (error, topRepos) => {
     logger.info('Starting to calculate Top Repos Stats')
+
     if (error) {
       logger.error(error)
     }
+
     const repoUrls = topRepos.map(repo => repo.url)
+
     getGithubStatsFromList(repoUrls, logger)
       .then(values => {
         logger.info('Writing out Top Repo Github data.')
         writeOutData(values, 'github-data-top-repos.json')
         logger.info('Finished calculating Top Repos Stats')
       })
-    logger.info('Cloning Top Repos')
-    cloneTopRepos(topRepos)
-    logger.info('Finished cloning Top Repos')
+
+    if (clone) {
+      logger.info('Cloning Top Repos')
+      cloneTopRepos(topRepos)
+      logger.info('Finished cloning Top Repos')
+    }
   })
 }
 
@@ -81,12 +85,13 @@ app.version(getAppVersion())
 app.command('inventory-stats [releasesFile]')
   .action(releasesFile => {
     releasesFile = releasesFile || path.join(__dirname, 'releases.json')
-    getInventoryStats(releasesFile)
+    getInventoryStats(releasesFile, getLogger())
   })
 
 app.command('top-stats')
-  .action(() => {
-    getTopRepoStats()
+  .option('-c, --clone', 'Clone repositories from remote.')
+  .action((command) => {
+    getTopRepoStats(command.clone, getLogger())
   })
 
 app.parse(process.argv)
