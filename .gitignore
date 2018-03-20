@@ -69,4 +69,4 @@ stats.json
 cloc-results.json
 releases.json
 
-.DS_Store
+*/.DS_Store
